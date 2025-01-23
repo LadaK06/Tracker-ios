@@ -117,11 +117,11 @@ final class TrackersViewController: UIViewController {
             forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,
             withReuseIdentifier: TrackerHeaderCollectionViewCell.reuseIdentifier
         )
-
+        
         addSubViews()
         applyConstraints()
     }
-
+    
     // MARK: - IBAction
     
     @objc
@@ -204,29 +204,49 @@ final class TrackersViewController: UIViewController {
         return result
     }
     
+    // Обновление отображаемых категорий
     private func reloadvisibleCategories(text: String?, date: Date) {
-            let calendar = Calendar.current
-            let filterWeekday = calendar.component(.weekday, from: date)
-            let filterText = (text ?? "").lowercased()
-            
+        
+        let calendar = Calendar.current
+        let filterWeekday = calendar.component(.weekday, from: date)
+        let filterText = (text ?? "").lowercased()
+        
         visibleCategories = categories.compactMap { category in
-                let trackers = category.trackers.filter { tracker in
-                    let textCondition = filterText.isEmpty ||
-                    tracker.name.lowercased().contains(filterText)
-                    let dateCondition = tracker.schedule.contains { weekDay in
-                        weekDay.numberOfDay == filterWeekday
-                    } == true
-                    return textCondition && dateCondition
-                }
-                if trackers.isEmpty {
-                    return nil
+            
+            // Фильтрация трекеров
+            let trackers = category.trackers.filter { tracker in
+                
+                // Обработка для нерегулярных событий
+                if tracker.isEvent {
+                    
+                    // Массив только с id выполненных трекеров
+                    let trackerIDs = self.completedTrackers.map { $0.trackerID }
+                    
+                    // Проверяем, содержится ли id трэкера в массиве trackerIDs и возвращаем булевое значение
+                    return !trackerIDs.contains(tracker.id)
                 }
                 
-                return TrackerCategory(
-                    title: category.title,
-                    trackers: trackers
-                )
+                // Поиск по названию (поиск подстроки в строке)
+                let textCondition = filterText.isEmpty ||
+                tracker.name.lowercased().contains(filterText)
+                
+                // Поиск по дате
+                let dateCondition = tracker.schedule.contains { weekDay in
+                    weekDay.numberOfDay == filterWeekday
+                } == true
+                
+                return textCondition && dateCondition
             }
+            
+            if trackers.isEmpty {
+                return nil
+            }
+            
+            return TrackerCategory(
+                title: category.title,
+                trackers: trackers
+            )
+        }
         collectionView.reloadData()
         reloadPlaceholder()
     }
@@ -243,7 +263,7 @@ final class TrackersViewController: UIViewController {
     
     private func isSameTrackerRecord(trackerRecord: TrackerRecord, id: UUID) -> Bool {
         let isSameDay = Calendar.current.isDate(trackerRecord.date, inSameDayAs: datePicker.date)
-       return trackerRecord.trackerID  == id && isSameDay
+        return trackerRecord.trackerID  == id && isSameDay
     }
 }
 
@@ -270,7 +290,7 @@ extension TrackersViewController: UICollectionViewDataSource {
             indexPath: indexPath,
             daysCount: getComletedCount(id: tracker.id),
             selectedDate: datePicker.date
-         )
+        )
         
         return cell
     }
@@ -337,9 +357,9 @@ extension TrackersViewController: UICollectionViewDelegateFlowLayout {
 extension TrackersViewController: UITextFieldDelegate {
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         textField.resignFirstResponder()
-
+        
         reloadvisibleCategories(text: searchTextField.text, date: datePicker.date)
-
+        
         return true
     }
 }
@@ -347,19 +367,28 @@ extension TrackersViewController: UITextFieldDelegate {
 // MARK: - CreatingTrackerViewControllerDelegate
 
 extension TrackersViewController: CreatingTrackerViewControllerDelegate {
-    func createTrackers(nameCategory: String, schedule: [WeekDay], nameTracker: String, color: UIColor, emoji: String) {
+    func createTrackers(nameCategory: String, schedule: [WeekDay], nameTracker: String, color: UIColor, emoji: String, isEvent: Bool) {
         var updatedCategories = categories
         
+        let newTracker = Tracker(
+            id: UUID(),
+            name: nameTracker,
+            color: color,
+            emoji: emoji,
+            schedule: schedule,
+            isEvent: isEvent
+        )
+        
         if let existingCategoryIndex = updatedCategories.firstIndex(where: { $0.title == nameCategory }) {
-                let newTracker = Tracker(id: UUID(), name: nameTracker, color: color, emoji: emoji, schedule: schedule)
-                let updatedTrackers = updatedCategories[existingCategoryIndex].trackers + [newTracker]
-                let updatedCategory = TrackerCategory(title: nameCategory, trackers: updatedTrackers)
-                updatedCategories[existingCategoryIndex] = updatedCategory
+            let updatedTrackers = updatedCategories[existingCategoryIndex].trackers + [newTracker]
+            let updatedCategory = TrackerCategory(title: nameCategory, trackers: updatedTrackers)
+            updatedCategories[existingCategoryIndex] = updatedCategory
+            
         } else {
-            let newTracker = Tracker(id: UUID(), name: nameTracker, color: color, emoji: emoji, schedule: schedule)
             let newCategory = TrackerCategory(title: nameCategory, trackers: [newTracker])
             updatedCategories.append(newCategory)
         }
+        
         DataManager.shared.updateTrackerCategory(updatedCategories: updatedCategories)
         collectionView.reloadData()
     }
@@ -370,7 +399,7 @@ extension TrackersViewController: CreatingTrackerViewControllerDelegate {
 extension TrackersViewController: TreckersCollectionViewCellDelegate {
     func completeTracker(id: UUID, at indexPath: IndexPath) {
         let trackerRecord = TrackerRecord(trackerID: id, date: datePicker.date)
-        completedTrackers.append (trackerRecord)
+        completedTrackers.append(trackerRecord)
         collectionView.reloadItems(at: [indexPath])
     }
     

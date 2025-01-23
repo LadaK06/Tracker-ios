@@ -225,10 +225,12 @@ final class NewHabitOrEventViewController: UIViewController {
     private func didTapCreateButton() {
         let newSchedule: [WeekDay]
         
-        if habitOrEvent == .habit {
+        var isEvent = false     // Флаг для нере
+        if habitOrEvent == .habit { // Привычка
             newSchedule = schedule
-        } else {
+        } else { // Нерегулярное событие
             newSchedule = WeekDay.allCases
+            isEvent = true
         }
         
         delegate?.createTrackers(
@@ -236,7 +238,8 @@ final class NewHabitOrEventViewController: UIViewController {
             schedule: newSchedule,
             nameTracker: textField.text ?? "Без названия",
             color: .brown,
-            emoji: "🫠"
+            emoji: "🫠",
+            isEvent: isEvent
         )
         
         guard let window = UIApplication.shared.windows.first else {
